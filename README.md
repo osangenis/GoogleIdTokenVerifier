@@ -6,6 +6,8 @@ This is a fork of https://github.com/GoogleIdTokenVerifier/GoogleIdTokenVerifier
   - Create unit tests of the different parts of the solution
   - Create integration tests (cert downloading)
 
+This library is helpful when you're writing a Go service for dealing with user authentications. You can take advantage of Golang performance to validate the Google Authentication token from a Google sign-in, extract the profile data and manage your own users.
+
 ## Usage
 To validate an Google ID Token in Golang
 
