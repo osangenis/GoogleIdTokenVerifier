@@ -55,16 +55,28 @@ type TokenInfo struct {
 
 // Verify is
 func Verify(authToken string, aud string) *TokenInfo {
-	return VerifyGoogleIDToken(authToken, GetCerts(GetCertsFromURL()), aud)
+	var niltokeninfo *TokenInfo
+	remoteCerts := GetCertsFromURL()
+	certs, err := GetCerts(remoteCerts)
+	if err != nil {
+		return niltokeninfo
+	}
+	return VerifyGoogleIDToken(authToken, certs, aud)
 }
 
 // VerifyGoogleIDToken is
 func VerifyGoogleIDToken(authToken string, certs *Certs, aud string) *TokenInfo {
-	header, payload, signature, messageToSign := divideAuthToken(authToken)
-
-	tokeninfo := getTokenInfo(payload)
 	var niltokeninfo *TokenInfo
-	//fmt.Println(tokeninfo)
+	header, payload, signature, messageToSign, err := divideAuthToken(authToken)
+	if err != nil {
+		return niltokeninfo
+	}
+
+	tokeninfo, err := getTokenInfo(payload)
+	if err != nil {
+		return niltokeninfo
+	}
+
 	if aud != tokeninfo.Aud {
 		err := errors.New("Token is not valid, Audience from token and certificate don't match")
 		fmt.Printf("Error verifying key %s\n", err.Error())
@@ -81,7 +93,12 @@ func VerifyGoogleIDToken(authToken string, certs *Certs, aud string) *TokenInfo 
 		return niltokeninfo
 	}
 
-	key, err := choiceKeyByKeyID(certs.Keys, getAuthTokenKeyID(header))
+	authTokenKeyID, err := getAuthTokenKeyID(header)
+	if err != nil {
+		return niltokeninfo
+	}
+
+	key, err := choiceKeyByKeyID(certs.Keys, authTokenKeyID)
 	if err != nil {
 		fmt.Printf("Error verifying key %s\n", err.Error())
 		return niltokeninfo
@@ -95,10 +112,10 @@ func VerifyGoogleIDToken(authToken string, certs *Certs, aud string) *TokenInfo 
 	return tokeninfo
 }
 
-func getTokenInfo(bt []byte) *TokenInfo {
+func getTokenInfo(bt []byte) (*TokenInfo, error) {
 	var a *TokenInfo
-	json.Unmarshal(bt, &a)
-	return a
+	err := json.Unmarshal(bt, &a)
+	return a, err
 }
 
 func checkTime(tokeninfo *TokenInfo) bool {
@@ -117,10 +134,10 @@ func GetCertsFromURL() []byte {
 }
 
 //GetCerts is
-func GetCerts(bt []byte) *Certs {
+func GetCerts(bt []byte) (*Certs, error) {
 	var certs *Certs
-	json.Unmarshal(bt, &certs)
-	return certs
+	err := json.Unmarshal(bt, &certs)
+	return certs, err
 }
 
 func urlsafeB64decode(str string) []byte {
@@ -145,15 +162,19 @@ func choiceKeyByKeyID(a []keys, tknkid string) (keys, error) {
 	return b, err
 }
 
-func getAuthTokenKeyID(bt []byte) string {
+func getAuthTokenKeyID(bt []byte) (string, error) {
 	var a keys
-	json.Unmarshal(bt, &a)
-	return a.Kid
+	err := json.Unmarshal(bt, &a)
+	return a.Kid, err
 }
 
-func divideAuthToken(str string) ([]byte, []byte, []byte, []byte) {
+func divideAuthToken(str string) ([]byte, []byte, []byte, []byte, error) {
 	args := strings.Split(str, ".")
-	return urlsafeB64decode(args[0]), urlsafeB64decode(args[1]), urlsafeB64decode(args[2]), calcSum(args[0] + "." + args[1])
+	sum, err := calcSum(args[0] + "." + args[1])
+	if err != nil {
+		return []byte{}, []byte{}, []byte{}, []byte{}, err
+	}
+	return urlsafeB64decode(args[0]), urlsafeB64decode(args[1]), urlsafeB64decode(args[2]), sum, nil
 }
 
 func byteToBtr(bt0 []byte) *bytes.Reader {
@@ -167,15 +188,18 @@ func byteToBtr(bt0 []byte) *bytes.Reader {
 	return bytes.NewReader(bt1)
 }
 
-func calcSum(str string) []byte {
+func calcSum(str string) ([]byte, error) {
 	a := sha256.New()
-	a.Write([]byte(str))
-	return a.Sum(nil)
+	_, err := a.Write([]byte(str))
+	if err != nil {
+		return []byte{}, err
+	}
+	return a.Sum(nil), nil
 }
 
 func btrToInt(a io.Reader) int {
 	var e uint64
-	binary.Read(a, binary.BigEndian, &e)
+	_ = binary.Read(a, binary.BigEndian, &e)
 	return int(e)
 }
 
