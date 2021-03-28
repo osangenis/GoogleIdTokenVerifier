@@ -149,6 +149,7 @@ func urlsafeB64decode(str string) []byte {
 }
 
 func choiceKeyByKeyID(a []keys, tknkid string) (keys, error) {
+	// TODO: Improve
 	if len(a) == 2 {
 		if a[0].Kid == tknkid {
 			return a[0], nil
