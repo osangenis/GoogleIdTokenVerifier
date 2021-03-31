@@ -20,7 +20,8 @@ func TestStaticCerts(t *testing.T) {
 	staticProvider := NewStaticCertsProvider()
 	err := staticProvider.LoadFromFile(testCertsPath)
 	require.NoError(t, err)
-	certs := staticProvider.GetCerts()
+	certs, err := staticProvider.GetCerts()
+	require.NoError(t, err)
 	assertCertsCorrect(t, certs)
 	err = staticProvider.LoadFromFile("testdata/non-existing.json")
 	require.Error(t, err)
@@ -64,12 +65,14 @@ func TestHappyDynamicCerts(t *testing.T) {
 			numRequests = 0
 			ts := httptest.NewServer(tc.handler)
 			certProv := createDynamicCertProvider(ts.URL, defaultRefreshBefore)
-			certs := certProv.GetCerts()
+			certs, err := certProv.GetCerts()
 			if tc.expSuccess {
+				assert.NoError(t, err)
 				assertCertsCorrect(t, certs)
 				assert.LessOrEqual(t, tc.expNumRequests, numRequests)
 			} else {
 				assert.Nil(t, certs)
+				assert.Error(t, err)
 			}
 			ts.Close()
 		})
@@ -91,7 +94,8 @@ func TestReduceDynamicCerts(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		wg.Add(1)
 		go func(c *CachedURLCertsProvider) {
-			certs := c.GetCerts()
+			certs, err := c.GetCerts()
+			assert.NoError(t, err)
 			assertCertsCorrect(t, certs)
 			wg.Done()
 		}(certProv)

@@ -13,7 +13,7 @@ import (
 const GoogleCertsURL string = "https://www.googleapis.com/oauth2/v3/certs"
 
 type CertsProvider interface {
-	GetCerts() *Certs
+	GetCerts() (*Certs, error)
 }
 
 type StaticCertsProvider struct {
@@ -34,8 +34,8 @@ func NewStaticCertsProvider() *StaticCertsProvider {
 	return &StaticCertsProvider{}
 }
 
-func (prv *StaticCertsProvider) GetCerts() *Certs {
-	return prv.certs
+func (prv *StaticCertsProvider) GetCerts() (*Certs, error) {
+	return prv.certs, nil
 }
 
 // AppendFromFile expects the path of a JSON file with the Certs format
@@ -61,14 +61,17 @@ func createDynamicCertProvider(rawUrl string, refreshBefore time.Duration) *Cach
 		expires:       time.Now(),
 		refreshBefore: refreshBefore,
 		updating:      false}
-	prv.updateCerts(context.Background())
+
+	// try to load certs right now in sync mode, even if it fails
+	_ = prv.updateCerts(context.Background())
 	return prv
 }
 
 const errFormatString string = "[GoogleTokenVerifier][%v] ERROR loading certs from %s: %v\n"
+const errCouldNotLoad string = "Could not retrieve a valid certificate from %s\n"
 const defaultRefreshBefore time.Duration = -time.Hour
 
-func (prv *CachedURLCertsProvider) GetCerts() *Certs {
+func (prv *CachedURLCertsProvider) GetCerts() (*Certs, error) {
 	dNow := time.Now()
 
 	prv.mutex.Lock()
@@ -79,61 +82,68 @@ func (prv *CachedURLCertsProvider) GetCerts() *Certs {
 			// sync
 			prv.certs = nil
 			prv.mutex.Unlock()
-			prv.updateCerts(context.Background())
+			err := prv.updateCerts(context.Background())
 			prv.mutex.Lock()
-			return prv.certs
+			return prv.certs, err
 		}
-		go prv.updateCerts(context.Background())
+		go func() {
+			_ = prv.updateCerts(context.Background())
+		}()
 	}
-	return prv.certs
+
+	if prv.certs == nil {
+		return nil, fmt.Errorf(errCouldNotLoad, prv.url)
+	}
+	return prv.certs, nil
 }
 
 func (prv *CachedURLCertsProvider) logErr(err error) {
 	fmt.Printf(errFormatString, time.Now().Format(time.RFC3339), prv.url, err)
 }
 
-func (prv *CachedURLCertsProvider) updateCerts(ctx context.Context) {
+func (prv *CachedURLCertsProvider) updateCerts(ctx context.Context) error {
 	prv.updateMutex.Lock()
 	if prv.updating {
 		prv.updateMutex.Unlock()
-		return
+		return nil
 	}
 	prv.updating = true
 	prv.updateMutex.Unlock()
-	prv.loadCertsFromURL(ctx)
+	err := prv.loadCertsFromURL(ctx)
 	prv.updateMutex.Lock()
 	prv.updating = false
 	prv.updateMutex.Unlock()
+	return err
 }
 
-func (prv *CachedURLCertsProvider) loadCertsFromURL(ctx context.Context) {
+func (prv *CachedURLCertsProvider) loadCertsFromURL(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", prv.url, nil)
 	if err != nil {
 		prv.logErr(err)
-		return
+		return err
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		prv.logErr(err)
-		return
+		return err
 	}
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		err := fmt.Errorf("Unsuccessful status code: %v", res.StatusCode)
 		prv.logErr(err)
-		return
+		return err
 	}
 
 	expiresHeader, err := http.ParseTime(res.Header.Get("Expires"))
 	if err != nil {
 		prv.logErr(err)
-		return
+		return err
 	}
 
 	bCerts, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		prv.logErr(err)
-		return
+		return err
 	}
 	res.Body.Close()
 
@@ -141,7 +151,7 @@ func (prv *CachedURLCertsProvider) loadCertsFromURL(ctx context.Context) {
 	err = json.Unmarshal(bCerts, &certs)
 	if err != nil {
 		prv.logErr(err)
-		return
+		return err
 	}
 
 	prv.mutex.Lock()
@@ -149,4 +159,5 @@ func (prv *CachedURLCertsProvider) loadCertsFromURL(ctx context.Context) {
 
 	prv.expires = expiresHeader
 	prv.certs = certs
+	return nil
 }
