@@ -18,38 +18,6 @@ import (
 	"time"
 )
 
-// Certs is
-type Certs struct {
-	Keys []keys `json:"keys"`
-}
-
-type keys struct {
-	Kty string `json:"kty"`
-	Alg string `json:"alg"`
-	Use string `json:"use"`
-	Kid string `json:"Kid"`
-	N   string `json:"n"`
-	E   string `json:"e"`
-}
-
-// TokenInfo is
-type TokenInfo struct {
-	Sub           string `json:"sub"`
-	Email         string `json:"email"`
-	AtHash        string `json:"at_hash"`
-	Aud           string `json:"aud"`
-	EmailVerified bool   `json:"email_verified"`
-	Name          string `json:"name"`
-	GivenName     string `json:"given_name"`
-	FamilyName    string `json:"family_name"`
-	Picture       string `json:"picture"`
-	Local         string `json:"locale"`
-	Iss           string `json:"iss"`
-	Azp           string `json:"azp"`
-	Iat           int64  `json:"iat"`
-	Exp           int64  `json:"exp"`
-}
-
 // https://developers.google.com/identity/sign-in/web/backend-auth
 // https://github.com/google/oauth2client/blob/master/oauth2client/crypt.py
 
