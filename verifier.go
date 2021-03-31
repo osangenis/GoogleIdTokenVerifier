@@ -21,21 +21,25 @@ import (
 // https://developers.google.com/identity/sign-in/web/backend-auth
 // https://github.com/google/oauth2client/blob/master/oauth2client/crypt.py
 
-// Verify is
-func Verify(authToken string, aud string) *TokenInfo {
+type GoogleTokenVerifier struct {
+	certProvider CertsProvider
+}
+
+// Default is the way to go to verify Google tokens ;-)
+var Default *GoogleTokenVerifier = New(NewCachedURLCertsProvider())
+
+func New(prv CertsProvider) *GoogleTokenVerifier {
+	return &GoogleTokenVerifier{prv}
+}
+
+func (v *GoogleTokenVerifier) Verify(authToken string, aud string) *TokenInfo {
 	var niltokeninfo *TokenInfo
-	remoteCerts := GetCertsFromURL()
-	certs, err := GetCerts(remoteCerts)
+	header, payload, signature, messageToSign, err := divideAuthToken(authToken)
 	if err != nil {
 		return niltokeninfo
 	}
-	return VerifyGoogleIDToken(authToken, certs, aud)
-}
 
-// VerifyGoogleIDToken is
-func VerifyGoogleIDToken(authToken string, certs *Certs, aud string) *TokenInfo {
-	var niltokeninfo *TokenInfo
-	header, payload, signature, messageToSign, err := divideAuthToken(authToken)
+	certs, err := v.certProvider.GetCerts()
 	if err != nil {
 		return niltokeninfo
 	}
