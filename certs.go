@@ -9,7 +9,7 @@ type keys struct {
 	Kty string `json:"kty"`
 	Alg string `json:"alg"`
 	Use string `json:"use"`
-	Kid string `json:"Kid"`
+	Kid string `json:"kid"`
 	N   string `json:"n"`
 	E   string `json:"e"`
 }
