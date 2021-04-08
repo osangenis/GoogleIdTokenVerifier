@@ -1,6 +1,9 @@
 package GoogleIdTokenVerifier
 
-// TokenInfo is
+// TokenInfo is an ID token as defined in https://auth0.com/docs/tokens#id-tokens
+// Access token used in token-based authentication to gain access to resources by using them as bearer tokens.
+// Refresh token is a long-lived special kind of token used to obtain a renewed access token.
+// ID token carries identity information encoded in the token itself, which must be a JWT. It must not contain any authorization information, or any audience information — it is merely an identifier for the user.
 type TokenInfo struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`
